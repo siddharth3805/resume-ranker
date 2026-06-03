@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Resume Ranker</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px;
+           margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+    h1 { color: #333; }
+    textarea { width: 100%; height: 120px; margin: 8px 0;
+               padding: 10px; border: 1px solid #ccc;
+               border-radius: 6px; font-size: 14px; }
+    input[type=file] { margin: 8px 0; }
+    button { background: #5348b7; color: white; border: none;
+             padding: 10px 24px; border-radius: 6px;
+             cursor: pointer; font-size: 15px; margin-right: 8px; }
+    button:hover { background: #3c3489; }
+    #results { margin-top: 24px; }
+    table { width: 100%; border-collapse: collapse;
+            background: white; border-radius: 8px; overflow: hidden; }
+    th { background: #5348b7; color: white; padding: 10px; }
+    td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+    .score-bar { height: 12px; background: #AFA9EC;
+                 border-radius: 6px; display: inline-block; }
+    label { font-weight: bold; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>AI Resume Ranker</h1>
+
+  <label>Job Description</label>
+  <textarea id="jd" placeholder="Paste job description here..."></textarea>
+
+  <label>Upload Resumes (PDF)</label>
+  <input type="file" id="resumes" multiple accept=".pdf">
+  <br><br>
+
+  <button onclick="rankResumes()">Rank Resumes</button>
+  <button id="dlBtn" style="display:none" onclick="downloadReport()">Download HR Report</button>
+
+  <div id="results"></div>
+
+  <script>
+    let lastResults = [];
+
+    async function rankResumes() {
+      const jd = document.getElementById("jd").value;
+      const files = document.getElementById("resumes").files;
+      if (!jd || files.length === 0) {
+        alert("Please enter a job description and upload resumes.");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("job_description", jd);
+      for (let f of files) fd.append("resumes", f);
+
+      document.getElementById("results").innerHTML = "Ranking...";
+      const res = await fetch("/rank", { method: "POST", body: fd });
+      const data = await res.json();
+      lastResults = data.results;
+      renderTable(data.results);
+      document.getElementById("dlBtn").style.display = "inline-block";
+    }
+
+    function renderTable(results) {
+      let html = "<table><tr><th>Rank</th><th>Resume</th><th>Match Score (%)</th><th>Visual</th></tr>";
+      results.forEach(([name, score], i) => {
+        const bar = `<span class='score-bar' style='width:${score*2}px'></span>`;
+        html += `<tr><td>${i+1}</td><td>${name}</td><td>${score}</td><td>${bar}</td></tr>`;
+      });
+      html += "</table>";
+      document.getElementById("results").innerHTML = html;
+    }
+
+    async function downloadReport() {
+      const res = await fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ results: lastResults })
+      });
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "hr_report.csv";
+      a.click();
+    }
+  </script>
+</body>
+</html>
